@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<!-- 
+ ____            _   _              __  __          _____  _____ _____ _    _          _      
+|  _ \          | | (_)            |  \/  |   /\   |  __ \|_   _/ ____| |  | |   /\   | |     
+| |_) | __ _ ___| |_ _  ___ _ __   | \  / |  /  \  | |__) | | || |    | |__| |  /  \  | |     
+|  _ < / _` / __| __| |/ _ \ '_ \  | |\/| | / /\ \ |  _  /  | || |    |  __  | / /\ \ | |     
+| |_) | (_| \__ \ |_| |  __/ | | | | |  | |/ ____ \| | \ \ _| || |____| |  | |/ ____ \| |____ 
+|____/ \__,_|___/\__|_|\___|_| |_| |_|  |_/_/    \_\_|  \_\_____\_____|_|  |_/_/    \_\______|
+                                                                                              
+ -->
+
+<meta name="author" content="Bastien Marichal">
+<meta charset="utf-8">
+<head>
+
+<title>RéHorgue - Zooming View</title>
+<style type="text/css">
+body{
+height: 100%
+  display: -webkit-flex;
+ -webkit-flex-direction: column;
+  -webkit-justify-content: center;
+  -webkit-align-content: center;
+  -webkit-align-items: center;
+
+}
+.node {
+  cursor: pointer;
+}
+
+.node:hover, .hover_effect {
+  stroke: #000;
+  stroke-width: 1.5px;
+}
+
+.node--root {
+  stroke: #777;
+  stroke-width: 2px;
+}
+
+.node--leaf {
+  fill: white;
+}
+
+.label {
+	font: 15px 'Open Sans', sans-serif;
+	text-anchor: middle;
+	font-weight: 400;
+	color: white;
+	//text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, -1px 0 0 #fff, 0 -1px 0 #fff;
+}
+
+.label,
+.node--root,
+.node--leaf {
+	pointer-events: none;
+}
+
+#orgaAc{
+	position: absolute;
+	top:10%;
+	left:0px;
+	border-right: solid 1px rgb(128,128,128);
+}
+
+#orgaCi{
+	position: absolute;
+	top:10%;
+	right: 0px;
+}
+
+#header{
+	font-family: 'Open Sans', sans-serif;
+	font-size: large;
+	font-weight: 300;
+	height: 10%;
+	text-align: center;
+}
+
+.subheader{
+	font-size: small;
+	text-align: center;
+	width: 50%;
+}
+
+#hAc{
+	position: absolute;
+	left: 0px;
+}
+
+#hCi{
+	position: absolute;
+	right: 0px;
+}
+
+#legend{
+	position: absolute;
+	bottom: 0px;
+	left: 0px;
+	width: 100%;
+	text-align: center;
+	font-family: 'Open Sans', sans-serif;
+	font-weight: 300;
+	font-size: smaller;
+}
+
+#info{
+	position: absolute;
+	left: 0px;
+	top:10%;
+	width: 100%;
+	text-align: center;
+	font-family: 'Open Sans', sans-serif;
+}
+#info table{
+	font-family: 'Open Sans', sans-serif;
+	font-weight: 300;
+	font-size: smaller;
+	margin-left: auto;
+	margin-right: auto;
+	width: 10em;
+	background-color: white;
+	border-radius: 10px;
+	border: 1px solid rgb(173,213,247);
+
+}
+
+#infoName{
+	font-weight: 400;
+	border-bottom: 1px solid rgb(173,213,247);
+}
+
+</style>
+</head>
+<body>
+	<div id="header">
+		ORGANISATION
+		<div id="hAc" class="subheader">Actuelle</div>
+		<div id="hCi" class="subheader">Cible</div>
+	</div>
+	<div id="orgaAc"></div>
+	<div id="orgaCi"></div>
+	<div id="legend"></div>
+	<div id="info">
+		<table>
+			<tr><td colspan='2'>Effectif</td></tr>
+			<tr><td colspan='2' id="infoName"> </td></tr>
+			<tr><td id="infoAc"></td><td id="infoCi"> </td></tr>
+		</table>
+	</div>
+</body>
+<script src="js/jquery.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/underscore.js"></script>
+<script src="js/underscore.deepextend.js"></script>
+<script src="js/underscore.nest.js"></script>
+<script src="js/underscore.math.js"></script>
+
+<script type="text/javascript">
+
+s=Math.min($(window).height()*0.9,$(window).width()*0.5); 
+var margin = 10,
+    outerDiameter = s,
+    innerDiameter = outerDiameter - margin - margin,
+    blocWidth = $(window).width()*0.5,
+    blocHeight = $(window).height()*0.9;
+    
+if((blocWidth-blocHeight)<0){marginw=margin;}else{marginw=(blocWidth-blocHeight)/2+margin;};
+if((blocWidth-blocHeight)>0){marginh=margin;}else{marginh=-(blocWidth-blocHeight)/2+margin;};
+
+var x = d3.scale.linear()
+    .range([0, innerDiameter]);
+
+var y = d3.scale.linear()
+    .range([0, innerDiameter]);
+    
+var color = d3.scale.category20c();
+
+var colors = {
+	   	   		 "Externe": "rgb(41,44,133)",
+	   	  "Chef de projet": "rgb(53,71,140)",
+	    	       "Autre": "rgb(78,122,199)",
+		         "Manager": "rgb(127,178,240)",
+              "Consultant": "rgb(173,213,247)",
+  			  "Technicien": "rgb(123,213,247)"
+
+}
+  
+drawLegend();
+
+function drawLegend() {
+
+  // Dimensions of legend item: width, height, spacing, radius of rounded rect.
+  var li = {
+    w: 100, h: 25, s: 3, r: 3
+  };
+
+  var legend = d3.select("#legend").append("svg:svg")
+      .attr("width", d3.keys(colors).length * (li.w + li.s))
+      .attr("height", li.h);
+
+  var g = legend.selectAll("g")
+      .data(d3.entries(colors))
+      .enter().append("svg:g")
+      .attr("transform", function(d, i) {
+              return "translate("+i*(li.w+li.s)+",0)";
+           });
+
+  g.append("svg:rect")
+      .attr("rx", li.r)
+      .attr("ry", li.r)
+      .attr("width", li.w)
+      .attr("height", li.h)
+      .style("fill", function(d) { return d.value; });
+
+  g.append("svg:text")
+      .attr("x", li.w / 2)
+      .attr("y", li.h / 2)
+      .attr("dy", "0.25em")
+      .attr("text-anchor", "middle")
+      .text(function(d) { return d.key; });
+}
+
+var pack = d3.layout.pack()
+    .padding(2)
+    .size([innerDiameter, innerDiameter])
+    .value(function(d) { return d.size || d.value; })
+
+var svg = d3.select("#orgaAc").append("svg")
+	.attr("id","svg")
+    .attr("width", blocWidth)
+    .attr("height", blocHeight)
+  .append("g")
+    .attr("transform", "translate(" +  marginw + "," + marginh + ")");
+        
+var svg1 = d3.select("#orgaCi").append("svg")
+    .attr("width", blocWidth)
+    .attr("height", blocHeight)
+  .append("g")
+    .attr("transform", "translate(" + marginw + "," + marginh + ")");
+    
+    svg1.id="svg1";
+    svg.id="svg";
+
+d3.csv("data.csv", function(d) {
+	return {
+	    service1: d.Origine,
+	    uo1: d.UOOrigine,
+	    service2: d.Cible,
+	    uo2: d.UOCible,
+	    type: d.type,
+	    value:1
+	};
+}, function(error, nodes) {
+	createTreeMap(error, _.nest(nodes, ["service1", "uo1","type"], _.sum), svg);
+	createTreeMap(error, _.nest(nodes, ["service2", "uo2","type"], _.sum), svg1);
+}); 
+
+function createTreeMap(error, root, obj) {
+	var focus = root;
+	obj.nodes = pack.nodes(root);
+
+	obj.append("g").selectAll("circle")
+      .data(obj.nodes)
+    .enter().append("circle")
+      .attr("class", function(d) { return d.parent ? d.children ? "node" : "node node--leaf" : "node node--root"; })
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+      .attr("r", function(d) { return d.r; })
+      .attr("id",function(d){return obj.id+d.name})
+      .style("fill", function(d) { return d.children ? color(d.depth) : colors[d.name]; })
+      .on('mouseover',function(d){getInfo(d,obj)})
+      .on('mouseout',function(d){$("#infoName").empty();$("#infoAc").empty();$("#infoCi").empty();$('.hover_effect').toggleClass('hover_effect node');})
+      .on("click", function(d) { return zoom(focus == d ? root : d); });
+
+  obj.append("g").selectAll("text")
+      .data(obj.nodes)
+    .enter().append("text")
+      .attr("class", "label")
+      .attr("fill", "white")
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+      .style("fill-opacity", function(d) { return d.parent === root ? 1 : 0; })
+      .text(function(d) { return d.children ? d.name : d.name +": "+d.value; });
+      
+	d3.select(window).on("click", function() { zoom(root); });
+};
+    
+function zoom(d, i) {
+	var focus0 = focus;
+	focus = d;
+
+	var k = innerDiameter / d.r / 2;
+	x.domain([d.x - d.r, d.x + d.r]);
+	y.domain([d.y - d.r, d.y + d.r]);
+	d3.event.stopPropagation();
+
+	var transition = d3.selectAll("#orgaCi, #orgaAc").selectAll("text,circle").transition()
+		.duration(d3.event.altKey ? 7500 : 750)
+		.attr("transform", function(d) { return "translate(" + x(d.x) + "," + y(d.y) + ")"; });
+
+	transition.filter("circle")
+		.attr("r", function(d) { return k * d.r; });
+
+	transition.filter("text")
+		.filter(function(d) { return d.depth == focus.depth || d.depth  == focus.depth +1})    
+		.style("fill-opacity", 1)
+		.style("fill-opacity", function(d) { return d.depth==0?0:1 });
+
+	transition.filter("text")
+		.filter(function(d) { return !(d.depth== focus.depth || d.depth  == focus.depth+1) })
+		.style("fill-opacity", 0)
+}
+  
+function searchTree(element, matchingTitle){
+	if(element.name == matchingTitle){
+		return element;
+	}else if (element.children != null){
+		var result = null;
+		for(var i=0; result == null && i < element.children.length; i++){
+			result = searchTree(element.children[i], matchingTitle);
+		}
+		return result;
+	}
+	return null;
+}
+
+function getInfo(d,obj){
+	$("#infoName").append(d.name);
+	var other;
+	if(obj.id=="svg"){
+		other=searchTree(svg1.nodes[0],d.name);
+		$("#infoAc").append(d.value);
+		$("#infoCi").append(other.value);
+		$("#svg1"+other.name).toggleClass('node hover_effect ');
+ 	}else{
+ 		other=searchTree(svg.nodes[0],d.name)
+		$("#infoCi").append(d.value);
+		$("#infoAc").append(other.value);
+		$("#svg"+other.name).toggleClass('node hover_effect');
+	}
+}
+</script>

@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<!-- 
+ ____            _   _              __  __          _____  _____ _____ _    _          _      
+|  _ \          | | (_)            |  \/  |   /\   |  __ \|_   _/ ____| |  | |   /\   | |     
+| |_) | __ _ ___| |_ _  ___ _ __   | \  / |  /  \  | |__) | | || |    | |__| |  /  \  | |     
+|  _ < / _` / __| __| |/ _ \ '_ \  | |\/| | / /\ \ |  _  /  | || |    |  __  | / /\ \ | |     
+| |_) | (_| \__ \ |_| |  __/ | | | | |  | |/ ____ \| | \ \ _| || |____| |  | |/ ____ \| |____ 
+|____/ \__,_|___/\__|_|\___|_| |_| |_|  |_/_/    \_\_|  \_\_____\_____|_|  |_/_/    \_\______|
+                                                                                              
+ -->
+<html>
+
+<head>
+<title>RéHorgue - Cluster View</title>
+<meta name="author" content="Bastien Marichal">
+<meta charset="utf-8">
+<style type="text/css">
+body{
+	font-family: 'Open Sans', sans-serif;
+}
+
+circle {
+	stroke: #fff;
+}
+
+circle:hover{
+	stroke-width:2px;
+	stroke:rgb(164,164,164);
+}
+
+#graph, #graph svg{
+	position: absolute;
+	bottom: 0px;
+	left: 0px;
+}
+
+rect{
+	fill:   none;
+}
+
+.active{
+	cursor: pointer;
+}
+
+.labelbutton{
+	font-size: smaller;
+	font-weight: 300;
+	cursor: pointer;
+
+}
+
+.active:hover {
+	fill: rgb(200,200,200);
+	stroke-width:3px;
+	stroke: rgb(210,210,210);
+}
+
+.button.select{
+	cursor: default;
+	stroke-width:3px;
+	stroke: rgb(35,114,170);
+}
+
+#header{
+	position: absolute;
+	top:0px;
+	left: 0px;
+	height: 20%;
+	width: 100%;
+	z-index:99;
+	font-weight: 300;
+}
+
+.tooltip {
+	position: absolute;
+	top: 100px;
+	left: 100px;
+	-moz-border-radius:5px;
+	border-radius: 5px;
+	border: 2px solid #000;
+	/* background: #222222; */
+	background: #fff;
+	opacity: .9;
+	/* color: #eeeeee; */
+	color: black;
+	padding: 10px;
+	width: 300px;
+	font-size: 12px;
+	z-index: 10;
+}
+
+.tooltip .title {
+	font-size: 13px;
+}
+
+.tooltip .name {
+  font-weight:bold;
+}
+.tooltip.label {
+  font-weight:500;
+}
+.tooltip table{
+	border-top: 1px solid black;
+	width:100%;
+}
+
+</style>
+</head>
+<body>
+	<div id="header"></div>
+	<div id="graph"></div>
+</body>
+<script src="js/jquery.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<script src="js/colorbrewer.js"></script>
+<script src="js/underscore-min.js"></script>
+<script src="js/underscore.nest.js"></script>
+<script src="js/underscore.math.js"></script>
+<script type="text/javascript">
+var clusterOpt=0;
+
+var buttonNames = [
+	{"name":"Aucun","value":0,"color":"rgb(115,195,239)"}, 
+	{"name":"Type de Poste","value":1,"color":"rgb(115,195,239)"},
+	{"name":"UO","value":2,"color":"rgb(87,195,239)"},
+	{"name":"Service","value":3,"color":"rgb(87,195,239)"},
+	{"name":"UO","value":4,"color":"rgb(77,159,206)"},
+	{"name":"Service","value":5,"color":"rgb(77,159,206)"}
+]
+
+var colors = {
+	   	   		 "Externe": "rgb(41,44,133)",
+	   	  "Chef de projet": "rgb(53,71,140)",
+	    	       "Autre": "rgb(78,122,199)",
+		         "Manager": "rgb(127,178,240)",
+              "Consultant": "rgb(173,213,247)",
+  			  "Technicien": "rgb(123,213,247)"
+}
+
+/*var color = d3.scale.category10()
+    .domain(d3.range(100));
+*/
+var color = d3.scale.ordinal()
+    .domain(d3.range(100))
+    .range(colorbrewer.Blues[9]);
+    
+var width = $(window).width(),//960,
+    height =$(window).height()*0.7,// 500,
+    padding = 6, // separation between nodes
+    maxRadius = 5;//12;
+
+var n = 200, // total number of nodes
+    m = 10; // number of distinct clusters
+
+    
+var n=100;
+var cluster = d3.range(n).map(function() {
+  var i = Math.floor(Math.random() * m),
+      v = (i + 1) / m * -Math.log(Math.random());
+  return {
+    r: 0,//Math.sqrt(v) * maxRadius,
+    color: color(i),
+    x: width/2,
+    y: height/2
+  };
+});
+
+function update(a,element){
+	clusterOpt=a;
+	cluster.forEach(
+		function(d){
+			d.x = width/2;
+			d.y = height/2;
+			d.r = 0;
+		}
+	);
+	switch (a){
+		case 0:
+			  		cluster[0].x = width/2;
+			  		cluster[0].y = height/2;
+			  		//cluster[0].r = treemapDom1[0].r;
+			  		cluster[0].color = color(3);
+			  		//console.log(treemapDom1[0]);
+		break;
+		case 1:
+			for(var i=0;i<d3.keys(numType).length;i++){
+				cluster[i].x = _.find(treemapType,function(num){return num.name==listType[i];}).cx;
+				cluster[i].y = _.find(treemapType,function(num){return num.name==listType[i];}).cy;
+				cluster[i].r = _.find(treemapType,function(num){return num.name==listType[i];}).radius+20;
+				cluster[i].color = colorType(listType[i]);
+				cluster[i].name = _.find(treemapType,function(num){return num.name==listType[i];}).name;
+				cluster[i].eff = _.find(treemapType,function(num){return num.name==listType[i];}).eff;
+			}
+		break;
+		case 2:
+			for(var i=0;i<d3.keys(numUO1).length;i++){
+				cluster[i].x = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).cx;
+				cluster[i].y = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).cy;
+				cluster[i].r = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).radius+10;
+				cluster[i].color = colorUO(listUO1[i]);
+				cluster[i].name = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).name;
+				cluster[i].eff = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).eff;
+				cluster[i].dom = _.find(treemapUO1,function(num){return num.name==listUO1[i];}).dom;
+
+
+			}
+		break;
+		case 3:
+			for(var i=0;i<d3.keys(numDom1).length;i++){
+				cluster[i].x = _.find(treemapDom1,function(num){return num.name==listDom1[i];}).cx;
+				cluster[i].y = _.find(treemapDom1,function(num){return num.name==listDom1[i];}).cy;
+				cluster[i].r = _.find(treemapDom1,function(num){return num.name==listDom1[i];}).radius+20;
+				cluster[i].color = colorUO(listDom1[i]);
+				cluster[i].name = _.find(treemapDom1,function(num){return num.name==listDom1[i];}).name;
+				cluster[i].eff = _.find(treemapDom1,function(num){return num.name==listDom1[i];}).eff;
+			}
+		break;
+		case 4:
+			for(var i=0;i<d3.keys(numUO2).length;i++){
+				cluster[i].x = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).cx;
+				cluster[i].y = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).cy;
+				cluster[i].r = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).radius+10;
+				cluster[i].color = colorUO(listUO2[i]);
+				cluster[i].name = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).name;
+				cluster[i].eff = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).eff;
+				cluster[i].dom = _.find(treemapUO2,function(num){return num.name==listUO2[i];}).dom;
+
+			}
+		break;
+		case 5:
+			for(var i=0;i<d3.keys(numDom2).length;i++){
+				cluster[i].x = _.find(treemapDom2,function(num){return num.name==listDom2[i];}).cx;
+				cluster[i].y = _.find(treemapDom2,function(num){return num.name==listDom2[i];}).cy;
+				cluster[i].r = _.find(treemapDom2,function(num){return num.name==listDom2[i];}).radius+20;
+				cluster[i].color = colorUO(listDom2[i]);
+				cluster[i].name = _.find(treemapDom2,function(num){return num.name==listDom2[i];}).name;
+				cluster[i].eff = _.find(treemapDom2,function(num){return num.name==listDom2[i];}).eff;
+			}
+		break;
+	}
+	
+	d3.selectAll(".button").attr("class","button active").attr("style","fill:rgb(230,230,230)");
+
+	d3.select(element)
+		.attr("style","fill:rgb(35,114,170)")
+		.attr("class","button select");	
+	
+	var transition = d3.selectAll("#graph").selectAll(".cluster").transition()
+			.duration( 1000)
+		    .attr("transform", function(d,i){return "translate("+cluster[i].x+","+cluster[i].y+")"})
+		    .attr("r",function(d,i){return cluster[i].r})
+			.attr("fill",function(d,i){return cluster[i].color})
+			.ease("sin-in-out");
+			//elastic bounce back circle exp
+}
+
+function drawHeader(w,h){
+	
+	var header = d3.select("#header").append("svg:svg")
+      .attr("width", w)
+      .attr("height", h);
+		
+		//bar global Header
+
+	rect(header, 0, 0, w, h*0.25, "rgb(35,114,170)");
+	addText(header, w / 2, h * 0.12, "0.25em", "middle", "white","RéHorgue - Cluster View").style("font-weight","700");
+	
+	rect(header, 0, h * 0.25, w, h*0.75, "rgb(242,242,242)");
+      
+  //+========================
+      
+	rect(header,h * 0.05,h * 0.30,(w-4*h*0.05)/3,h*0.65,"rgb(251,251,251)");
+	rect(header, 2*h * 0.05+(w-4*h*0.05)/3, h * 0.30,(w-4*h*0.05)/3,h*0.65,"rgb(251,251,251)");
+	rect(header,3*h * 0.05+2*(w-4*h*0.05)/3, h * 0.30,(w-4*h*0.05)/3,h*0.65,"rgb(251,251,251)");
+	
+	rect(header,h * 0.05,h * 0.30,(w-4*h*0.05)/3,h*0.65*0.25,"rgb(38,124,185)");
+	rect(header, 2*h * 0.05+(w-4*h*0.05)/3, h * 0.30,(w-4*h*0.05)/3,h*0.65*0.25,"rgb(38,124,185)");
+	rect(header,3*h * 0.05+2*(w-4*h*0.05)/3, h * 0.30,(w-4*h*0.05)/3,h*0.65*0.25,"rgb(38,124,185)");
+  
+	addText(header, h * 0.05+(w-4*h*0.05)/6, h * 0.30+h*0.65*0.25/2, "0.25em", "middle", "white","Cluster");
+	addText(header,2*h * 0.05+3*(w-4*h*0.05)/6, h * 0.30+h*0.65*0.25/2, "0.25em","middle","white","Information");
+	addText(header, 3*h * 0.05+5*(w-4*h*0.05)/6,h * 0.30+h*0.65*0.25/2, "0.25em", "middle", "white","Legend");
+  
+  //++++++++++++++control
+  var n=6;
+  var li = {
+    	w: (w-4*h*0.05)/6*2/3,
+    	h: h*0.65*0.75/(n)*2,
+    	x0:h * 0.05+2*(w-4*h*0.05)/6/3, 
+    	y0:h * 0.30+h*0.65*0.25,
+    	s: 3, r: 0
+  	};
+
+  var g = header.selectAll("g")
+     .data(buttonNames)
+      .enter().append("svg:g")
+      .attr("transform", function(d, i) {
+              return "translate("+eval(li.x0+i%2*(li.w)+li.s)+","+eval(li.y0+Math.floor(i/2)*(li.h)+li.s)+")";
+           });
+ 
+rect(g,0,0,li.w-2*li.s,li.h-2*li.s, function(d) { return "rgb(230,230,230)" /*d.color; */}).attr("class","button active").on("click",function (d){update(d.value,this)}).attr("id",function(d){return d.name+d.value});
+//console.log(g[0][0].select("rect"))
+addText(g, li.w / 2-li.s, li.h / 2-li.s, "0.25em", "middle", "rgb(77,159,206)",function(d) { return d.name; })
+      .attr("class","labelbutton")
+      .on("click",function (d){ update(d.value)});
+
+addText(header, h * 0.05+2*(w-4*h*0.05)/6/3-li.w / 2-li.s, h * 0.30+h*0.65*0.25+1.5*li.h -li.s, "0.25em", "right", "rgb(87,195,239)","Actuel");
+addText(header, h * 0.05+2*(w-4*h*0.05)/6/3-li.w / 2-li.s, h * 0.30+h*0.65*0.25+2.5*li.h -li.s, "0.25em", "right", "rgb(77,159,206)","Cible");
+
+
+  //++++++++++information
+   
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+3, h * 0.30+h*0.65*0.25+3,(w-4*h*0.05)/6-3,h*0.6*0.25,"rgb(87,181,234)");
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+60, h * 0.30+h*0.65*0.25+3,(w-4*h*0.05)/6-60,h*0.6*0.25,"rgb(242,242,242)");
+addText(header, 2*h * 0.05+(w-4*h*0.05)/3+6,  h * 0.30+h*0.65*0.25+h*0.6*0.25/2+4.5, "0.25em", "right", "white","NOM");
+addText(header, 2*h * 0.05+(w-4*h*0.05)/3+63,  h * 0.30+h*0.65*0.25+h*0.6*0.25/2+4.5, "0.25em","right", "rgb(87,181,234)").attr("id","legendDotName");
+
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+3+(w-4*h*0.05)/6, h * 0.30+h*0.65*0.25+3,(w-4*h*0.05)/6-6,h*0.60*0.25,"rgb(87,181,234)").attr("stroke","rgb(87,181,234)");
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+3+(w-4*h*0.05)/6+60, h * 0.30+h*0.65*0.25+3,(w-4*h*0.05)/6-65,h*0.60*0.25,"rgb(242,242,242)").attr("stroke","rgb(87,181,234)");
+addText(header, 2*h * 0.05+(w-4*h*0.05)/3+3+(w-4*h*0.05)/6+3,  h * 0.30+h*0.65*0.25+h*0.6*0.25/2+4.5, "0.25em", "right", "white", "Type");
+addText(header, 2*h * 0.05+(w-4*h*0.05)/3+3+(w-4*h*0.05)/6+3+66, h * 0.30+h*0.65*0.25+h*0.6*0.25/2+4.5, "0.25em", "right", "rgb(87,181,234)").attr("id","legendDotType");
+      	
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+3,  h * 0.30+h*0.65*0.25+h*0.60*0.25+6,(w-4*h*0.05)/3-6,h*0.60*0.25,"rgb(87,195,239)");
+rect(header, 2*h * 0.05+(w-4*h*0.05)/3+3,  h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9,(w-4*h*0.05)/3-6,h*0.6*0.25,"rgb(77,159,206)");
+
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+6,h * 0.30+h*0.65*0.25+h*0.60*0.25+h*0.60*0.25/2+6,"0.25em","right",  "white","Actuel");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+6,h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9+h*0.60*0.25/2,"0.25em","right",  "white","Cible");
+
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/16+6, h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9+h*0.60*0.25/2,"0.25em","right",  "white","UO");
+addText(header, 2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/16+6, h * 0.30+h*0.65*0.25+h*0.60*0.25+h*0.60*0.25/2+6,"0.25em","right",  "white","UO");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/10+6, h * 0.30+h*0.65*0.25+h*0.60*0.25+h*0.60*0.25/2+6,"0.25em", "right", "white").attr("id","legendDotUOActuelle");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/10+6, h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9+h*0.60*0.25/2,"0.25em", "right", "white").attr("id","legendDotUOCible");
+
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/6+6,h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9+h*0.60*0.25/2, "0.25em", "right", "white","Service");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/6+6,h * 0.30+h*0.65*0.25+h*0.60*0.25+h*0.60*0.25/2+6, "0.25em", "right", "white","Service");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/4+6, h * 0.30+h*0.65*0.25+h*0.60*0.25+h*0.60*0.25/2+6,"0.25em", "right", "white").attr("id","legendDotDomActuel");
+addText(header,2*h * 0.05+(w-4*h*0.05)/3+(w-4*h*0.05)/4+6,h * 0.30+h*0.65*0.25+2*h*0.6*0.25+9+h*0.60*0.25/2, "0.25em", "right", "white").attr("id","legendDotDomCible");
+
+  //++++++++++++++++Legend++++++++++++
+  
+ 	 n=6;
+   	 li = {
+    	w: (w-4*h*0.05)/3/(n)*2,
+    	h: h*0.65*0.75/2,
+    	x0:3*h * 0.05+2*(w-4*h*0.05)/3, 
+    	y0:h * 0.30+h*0.65*0.25,
+    	s: 3, r: 0
+  	};
+  
+	var g1 = header.selectAll("g1")
+      .data(d3.entries(colors))
+      .enter().append("svg:g")
+      .attr("transform", function(d, i) {
+              return "translate("+eval(li.x0+i%3*(li.w)+li.s)+","+eval(li.y0+Math.floor(i/3)*(li.h)+li.s)+")";
+           });
+
+	rect(g1,li.r,li.r,li.w-2*li.s,li.h-2*li.s,function(d) { return d.value; });
+	addText(g1,li.w / 2-li.s,li.h / 2-li.s,"0.25em","middle","white",function(d) { return d.key; });
+
+//update(0,d3.selectAll("#Aucun0"));
+
+}
+//Create rectangle svg
+function rect(svg,x,y,w,h,color){	
+return	svg.append("svg:rect")
+      .attr("x", x)
+      .attr("y", y)
+      .attr("width", w)
+      .attr("height",h)
+      .style("fill", color);
+}
+
+function addText(svg,x,y,dy,a,color,text){
+	return svg.append("svg:text")
+      .attr("x", x)
+      .attr("y", y)
+      .attr("dy", dy)
+      .attr("text-anchor", a)
+      .attr("fill", color)
+      .text(text);
+}
+
+//Update data to the the header information box 
+function dotHover(d){
+	d3.select("#legendDotName").text(d.name);
+	d3.select("#legendDotType").text(d.type);
+	d3.select("#legendDotUOActuelle").text(d.uo1);
+	d3.select("#legendDotUOCible").text(d.uo2);	
+	d3.select("#legendDotDomActuel").text(d.service1);
+	d3.select("#legendDotDomCible").text(d.service2);	
+}
+
+//create a first svg to add cluster circle
+var svg1 = d3.select("#graph").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+    
+ rect(svg1,0,0,width,height,"rgb(242,242,242)");
+ var mg=height*0.3/0.7*0.05,
+ 	h=height-mg,
+ 	w=width-2*mg;
+ rect(svg1,mg,0,w,h,"rgb(255,255,255)").attr("stroke","rgb(222,224,230)");
+   
+   //create second svg to add force layout
+var svg = d3.select("#graph").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+    
+// add cluster
+var clust = svg.selectAll(".cluster")
+    .data(cluster)
+  .enter().append("circle")
+  	.attr("class","cluster")
+    .attr("x", function(d) { return d.x; })
+    .attr("y", function(d) { return d.y; })
+    .attr("r", function(d) { return d.r; })
+    .attr("fill", function(d) { return d.color; })
+    .on("mouseover",function(d){showDetails(d,this);})
+    .on("mouseout",function(d){hideDetails(d,this);});
+    
+d3.csv("data.csv", function(d) {
+	var i = Math.floor(Math.random() * m),
+      v = (i + 1) / m * -Math.log(Math.random());
+	return {
+		name : d.Nom,
+	    service1: d.Origine,
+	    uo1: d.UOOrigine,
+	    service2: d.Cible,
+	    uo2: d.UOCible,
+	    type: d.type,
+	    value:1,
+	    color: colors[d.type],
+	    radius: 5,//Math.sqrt(v) * maxRadius,
+	    cx: width / 2,
+    	cy: height / 2
+	};
+}, function(error, nodes) {
+
+	drawHeader(width,height*0.3/0.7);
+
+listType = _.uniq(_.pluck(nodes, 'type'));
+listUO1 = _.uniq(_.pluck(nodes, 'uo1'));
+listDom1 = _.uniq(_.pluck(nodes, 'service1'));
+listUO2 = _.uniq(_.pluck(nodes, 'uo2'));
+listDom2 = _.uniq(_.pluck(nodes, 'service2'));
+
+numType = _.countBy(_.pluck(nodes, 'type'));
+numUO1 = _.countBy(_.pluck(nodes, 'uo1'));
+numDom1 = _.countBy(_.pluck(nodes, 'service1'));
+numUO2 = _.countBy(_.pluck(nodes, 'uo2'));
+numDom2 = _.countBy(_.pluck(nodes, 'service2'));
+
+Actu = _.nest(nodes, ["service1", "uo1","type"], _.sum);
+Cib = _.nest(nodes, ["service2", "uo2","type"], _.sum);
+
+
+colorType = d3.scale.ordinal()
+    .domain(listType)
+    .range(colorbrewer.Blues[listType.length]);
+
+colorDom = d3.scale.ordinal()
+    .domain(listType)
+    .range(colorbrewer.Blues[listDom1.length]);
+
+colorUO = d3.scale.ordinal()
+    .domain(listType)
+    .range(colorbrewer.Blues[9]);
+
+var typeNodes = {
+	"name":"typeNodes",
+	"children": d3.range(listType.length).map(function(i) {
+		return {
+			radius : 5*Math.sqrt(numType[listType[i]]),
+			name :listType[i],
+			eff:numType[listType[i]]
+		};
+	})
+};
+
+treemapType = d3.layout.treemap()
+    .size([width, height])
+    .sticky(true)
+    .value(function(d) { return d.radius; })
+    .nodes(typeNodes);
+    
+treemapType.forEach(function (d){
+    d.cx=d.x+d.dx/2;
+    d.cy=d.y+d.dy/2;
+})
+
+var UONodes1 = {
+	"name":"UONodes1",
+	"children": d3.range(listUO1.length).map(function(i) {
+		return {
+			radius : 5*Math.sqrt(numUO1[listUO1[i]]),
+			name :listUO1[i],
+			eff:numUO1[listUO1[i]],
+			dom: _.find(nodes,function(num){return num.uo1==listUO1[i]}).service1
+		};
+	})
+};
+//console.log(UONodes1)
+treemapUO1 = d3.layout.treemap()
+    .size([width, height])
+    .padding(0)
+    .sticky(true)
+    .sort( function comparator(a, b) {
+		return b.name - a.name;
+	})
+    .value(function(d) { return d.radius; })
+
+    .nodes(UONodes1);
+
+treemapUO1.forEach(function (d){
+    	d.cx=d.x+d.dx/2;
+    	d.cy=d.y+d.dy/2;
+})
+
+var UONodes2 = {
+	"name":"UONodes2",
+	"children": d3.range(listUO2.length).map(function(i) {
+		return {
+			radius : 5*Math.sqrt(numUO2[listUO2[i]]),
+			name :listUO2[i],
+			eff:numUO2[listUO2[i]],
+			dom: _.find(nodes,function(num){return num.uo2==listUO2[i]}).service2
+		};
+	})
+};
+
+treemapUO2 = d3.layout.treemap()
+    .size([width, height])
+    .padding(0)
+    .sort( function comparator(a, b) {
+ 		 return b.name - a.name;
+	})
+    .sticky(true)
+    .value(function(d) { return d.radius; })
+    .nodes(UONodes2);
+
+treemapUO2.forEach(function (d){
+    	d.cx=d.x+d.dx/2;
+    	d.cy=d.y+d.dy/2;
+})
+
+var DomNodes1 = {
+	"name":"DomNodes1",
+	"children": d3.range(listDom1.length).map(function(i) {
+		return {
+			radius : 5*Math.sqrt(numDom1[listDom1[i]]),
+			name :listDom1[i],
+			eff:numDom1[listDom1[i]]		
+		};
+	})
+};
+
+treemapDom1 = d3.layout.treemap()
+    .size([width, height])
+   // .padding(10)
+    .sticky(true)
+     .sort( function comparator(a, b) {
+ 		 return b.name - a.name;
+	})
+    .value(function(d) { return d.radius; })
+    .ratio(1)
+    .mode('squarify')
+    .nodes(DomNodes1);
+
+treemapDom1.forEach(function (d){
+    d.cx=d.x+d.dx/2;
+    d.cy=d.y+d.dy/2;
+})
+
+
+var DomNodes2 = {
+	"name":"DomNodes2",
+	"children": d3.range(listDom2.length).map(function(i) {
+		return {
+			radius : 5*Math.sqrt(numDom2[listDom2[i]]),
+			name :listDom2[i],
+			eff:numDom2[listDom2[i]]
+		};
+	})
+};
+
+
+treemapDom2 = d3.layout.treemap()
+    .size([width, height])
+   // .padding(10)
+    .sticky(true)
+     .sort( function comparator(a, b) {
+ 		 return b.name - a.name;
+	})
+    .value(function(d) { return d.radius; })
+    .ratio(1)
+    .mode('squarify')
+    .nodes(DomNodes2);
+
+treemapDom2.forEach(function (d){
+    	d.cx=d.x+d.dx/2;
+    	d.cy=d.y+d.dy/2;
+})
+
+
+var force = d3.layout.force()
+    .nodes(nodes)
+    .size([width, height])
+    .gravity(0)
+    .charge(0)
+    .on("tick", tick)
+    .start();
+
+var circle = svg.selectAll(".dot")
+    .data(nodes)
+  .enter().append("circle")
+  	.attr("class","dot")
+    .attr("r", function(d) { return d.radius; })
+    .style("fill", function(d) { return d.color; })
+    .on("mouseover",function(d){dotHover(d);})
+    .call(force.drag);
+
+
+
+function tick(e) {
+  circle
+      .each(gravity(0.08 * e.alpha))
+      .each(collide(0.2))//.5))
+      .attr("cx", function(d) { return d.x; })
+      .attr("cy", function(d) { return d.y; });
+  force.start();
+}
+
+// Move nodes toward cluster focus.
+function gravity(alpha) {
+	nodes.forEach(
+		function (d,i){
+			  switch (clusterOpt){
+			  case 0:
+			  		d.cx=width/2;
+			  		d.cy=height/2;
+			  break;
+			  case 1: //typologie de contrat
+			    	d.cx=_.find(treemapType,function(num){return num.name==d.type;}).cx;
+			    	d.cy=_.find(treemapType,function(num){return num.name==d.type;}).cy;
+			  break;
+			  case 2:
+			  		d.cx=_.find(treemapUO1,function(num){return num.name==d.uo1;}).cx;
+			    	d.cy=_.find(treemapUO1,function(num){return num.name==d.uo1;}).cy;
+			  break;
+ 			  case 3:
+			  		d.cx=_.find(treemapDom1,function(num){return num.name==d.service1;}).cx;
+			    	d.cy=_.find(treemapDom1,function(num){return num.name==d.service1;}).cy;
+			  break;
+			  case 4:
+			  		d.cx=_.find(treemapUO2,function(num){return num.name==d.uo2;}).cx;
+			    	d.cy=_.find(treemapUO2,function(num){return num.name==d.uo2;}).cy;
+			  break;
+			  case 5:
+			  		d.cx=_.find(treemapDom2,function(num){return num.name==d.service2;}).cx;
+			    	d.cy=_.find(treemapDom2,function(num){return num.name==d.service2;}).cy;
+			  break;
+			  }
+		}
+	)
+  
+  return function(d) {
+  //TODO change define margin and other to fit content, add radius dot dependency
+ 		d.y = Math.max(0, Math.min(h , d.y+(d.cy - d.y) * alpha)); 
+ 		d.x = Math.max(mg, Math.min(w + mg, d.x+(d.cx - d.x) * alpha)); 
+     
+  //SAFE
+    //d.y += (d.cy - d.y) * alpha;
+    //d.x += (d.cx - d.x) * alpha;
+  };
+}
+
+// Resolve collisions between nodes.
+function collide(alpha) {
+  var quadtree = d3.geom.quadtree(nodes);
+  return function(d) {
+    var r = d.radius + maxRadius + padding,
+        nx1 = d.x - r,
+        nx2 = d.x + r,
+        ny1 = d.y - r,
+        ny2 = d.y + r;
+    quadtree.visit(function(quad, x1, y1, x2, y2) {
+      if (quad.point && (quad.point !== d)) {
+        var x = d.x - quad.point.x,
+            y = d.y - quad.point.y,
+            l = Math.sqrt(x * x + y * y),
+            r = d.radius + quad.point.radius;// + (d.color !== quad.point.color) * padding;
+        if (l < r) {
+          l = (l - r) / l * alpha;
+          d.x -= x *= l;
+          d.y -= y *= l;
+          quad.point.x += x;
+          quad.point.y += y;
+        }
+      }
+      return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+    });
+  };
+}
+});
+
+var tooltip = CustomTooltip("tooltipId", 200);
+
+function showDetails(d,element){
+    d3.select(element).attr("style", "stroke-width:6px;stroke:rgb(187,191,203);");
+    
+    switch (clusterOpt){
+    	case 1:
+	    	content = "<span class=\"name\">Type de Poste: </span><span class=\"value\">"+d.name +"</span><br/>";
+			content+= "<span class=\"name\">Effectif: </span><span class=\"value\">"+d.eff +"</span><br/>";
+    	break;
+    	case 2:
+    		var info = searchTree(Actu, d.name)
+    		content="<span class=\"name\">UO: </span><span class=\"value\">"+d.name +"</span><br/>";
+			content+= "<span class=\"name\">Rattachée au service: </span><span class=\"value\">"+d.dom+"</span><br/>";
+			content+= "<span class=\"name\">Effectif: </span><span class=\"value\">"+d.eff +"</span><br/>";
+			
+			content+="<table><tr><td class=\"name\">Répartition</td><td>";
+
+			info.children.forEach(
+				function(d){
+					content+= "<span class=\"label\">"+d.name+": </span><span class=\"value\">"+d.value +"</span><br/>";
+				}
+			)
+			content+="</td></tr></table>"
+    	break;
+    	case 3:
+    	    var info = searchTree(Actu, d.name)
+    		var mem= new Array();
+
+    		content="<span class=\"name\">service: </span><span class=\"value\">"+d.name +"</span><br/>";
+			content+= "<span class=\"name\">Nombre de UO: </span><span class=\"value\">"+info.children.length+"</span><br/>";
+			content+= "<span class=\"name\">Effectif: </span><span class=\"value\">"+d.eff +"</span><br/>";
+			content+="<table><tr><td class=\"name\">Répartition</td><td>";
+
+			info.children.forEach(function(d){mem.push(d.children)})
+			mem=_.groupBy(_.flatten(mem),function(num){return num.name});
+			mem=_.map(mem,function(g, key) {return { type: key, val: _(g).reduce(function(m,x) { return m + x.value; },0)};});
+			mem.forEach(
+				function(d){
+					content+= "<span class=\"label\">"+d.type+": </span><span class=\"value\">"+d.val +"</span><br/>";
+				}
+			)
+			content+="</td></tr></table>"
+    	break;
+    	case 4:
+    		var info = searchTree(Cib, d.name)
+    		content="<span class=\"name\">UO: </span><span class=\"value\">"+d.name +"</span><br/>";
+			content+= "<span class=\"name\">Rattachée au Service: </span><span class=\"value\">"+d.dom+"</span><br/>";
+			content+= "<span class=\"name\">Effectif: </span><span class=\"value\">"+d.eff +"</span><br/>";
+			
+			content+="<table><tr><td class=\"name\">Répartition</td><td>";
+
+			info.children.forEach(
+				function(d){
+					content+= "<span class=\"label\">"+d.name+": </span><span class=\"value\">"+d.value +"</span><br/>";
+				}
+			)
+			content+="</td></tr></table>"
+    	break;
+    	case 5:
+    	    var info = searchTree(Cib, d.name)
+    		var mem= new Array();
+
+    		content="<span class=\"name\">Service: </span><span class=\"value\">"+d.name +"</span><br/>";
+			content+= "<span class=\"name\">Nombre de UO: </span><span class=\"value\">"+info.children.length+"</span><br/>";
+			content+= "<span class=\"name\">Effectif: </span><span class=\"value\">"+d.eff +"</span><br/>";
+			content+="<table><tr><td class=\"name\">Répartition</td><td>";
+
+			info.children.forEach(function(d){mem.push(d.children)})
+			mem=_.groupBy(_.flatten(mem),function(num){return num.name});
+			mem=_.map(mem,function(g, key) {return { type: key, val: _(g).reduce(function(m,x) { return m + x.value; },0)};});
+			mem.forEach(
+				function(d){
+					content+= "<span class=\"label\">"+d.type+": </span><span class=\"value\">"+d.val +"</span><br/>";
+				}
+			)
+			content+="</td></tr></table>"
+    	break;
+    }
+	tooltip.showTooltip(content,d3.event)
+}
+function hideDetails(d,element){
+	tooltip.hideTooltip()
+	d3.select(element).attr("style", "stroke-width:0px;");
+}
+
+function CustomTooltip(tooltipId, width){
+	var tooltipId = tooltipId;
+	$("body").append("<div class='tooltip' id='"+tooltipId+"'></div>");
+	
+	if(width){
+		$("#"+tooltipId).css("width", width);
+	}
+	
+	hideTooltip();
+	
+	function showTooltip(content, event){
+		$("#"+tooltipId).html(content);
+		$("#"+tooltipId).show();
+		
+		updatePosition(event);
+	}
+	
+	function hideTooltip(){
+		$("#"+tooltipId).hide();
+	}
+	
+	function updatePosition(event){
+		var ttid = "#"+tooltipId;
+		var xOffset = 20;
+		var yOffset = 10;
+		
+		 var ttw = $(ttid).width();
+		 var tth = $(ttid).height();
+		 var wscrY = $(window).scrollTop();
+		 var wscrX = $(window).scrollLeft();
+		 var curX = (document.all) ? event.clientX + wscrX : event.pageX;
+		 var curY = (document.all) ? event.clientY + wscrY : event.pageY;
+		 var ttleft = ((curX - wscrX + xOffset*2 + ttw) > $(window).width()) ? curX - ttw - xOffset*2 : curX + xOffset;
+		 if (ttleft < wscrX + xOffset){
+		 	ttleft = wscrX + xOffset;
+		 } 
+		 var tttop = ((curY - wscrY + yOffset*2 + tth) > $(window).height()) ? curY - tth - yOffset*2 : curY + yOffset;
+		 if (tttop < wscrY + yOffset){
+		 	tttop = curY + yOffset;
+		 } 
+		 $(ttid).css('top', tttop + 'px').css('left', ttleft + 'px');
+	}
+	
+	return {
+		showTooltip: showTooltip,
+		hideTooltip: hideTooltip,
+		updatePosition: updatePosition
+	}
+}
+
+function searchTree(element, matchingTitle){
+	if(element.name == matchingTitle){
+		return element;
+	}else if (element.children != null){
+		var result = null;
+		for(var i=0; result == null && i < element.children.length; i++){
+			result = searchTree(element.children[i], matchingTitle);
+		}
+		return result;
+	}
+	return null;
+}
+
+function searchTreeParent(element, matchingTitle){
+	
+	 if (element.children != null){
+		var result = null;
+		for(var i=0; result == null && i < element.children.length; i++){
+			if(element.children[i].name == matchingTitle){
+				return element;
+			}else {
+			result = searchTreeParent(element.children[i], matchingTitle);
+			}
+		}
+		return result;
+	}
+	return null;
+}
+
+</script>
+</html>
